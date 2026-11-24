@@ -1,0 +1,51 @@
+# Offline checks only: nothing here logs in to Snowflake, so the workflow needs no secrets.
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy values so compose and dbt can render their configuration. Nothing connects anywhere.
+      SNOWFLAKE_ACCOUNT: ci-dummy
+      SNOWFLAKE_USER: ci_dummy
+      SNOWFLAKE_KEY_PASSPHRASE: ci-dummy
+      SNOWFLAKE_KEY_FILE: /nonexistent/ci.p8
+      DATA_DIR: /tmp/data
+      DBT_PROFILES_DIR: dbt_project
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: No secrets or data are tracked
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$|\.p8$|\.pem$|^secrets/|^data/'; then
+            echo "A secret or data file is tracked"; exit 1
+          fi
+
+      - name: Python compiles
+        run: python -m compileall -q snowpark_jobs airflow/dags
+
+      - name: Shell scripts parse
+        run: for f in scripts/*.sh; do bash -n "$f"; done
+
+      - name: Compose file is valid
+        run: docker compose --profile pipeline --profile airflow config --quiet
+
+      - name: Make targets resolve
+        run: |
+          make help > /dev/null
+          make -n pipeline > /dev/null
+          make -n demo > /dev/null
+
+      - name: dbt project parses
+        run: |
+          pip install --quiet -r docker/requirements.dbt.txt
+          dbt deps --project-dir dbt_project
+          dbt parse --project-dir dbt_project
