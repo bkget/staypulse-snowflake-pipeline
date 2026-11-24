@@ -1,0 +1,20 @@
+name: staypulse
+version: '1.0.0'
+profile: staypulse
+model-paths: ["models"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages"]
+vars:
+  snapshot_date: '2026-09-17'      # which listings snapshot the SCD2 run reads (the newer one by default)
+  cortex_fn: ai_classify           # ai_classify | ai_complete | keyword_stub
+  issue_labels: [cleanliness, noise, check_in, location, host_communication, amenities, value, other]
+models:
+  staypulse:
+    staging:      {+schema: staging,      +materialized: view,  +tags: [staging]}
+    intermediate: {+schema: intermediate, +materialized: table, +transient: false, +tags: [intermediate]}
+    marts:        {+schema: marts,        +materialized: table, +transient: false, +tags: [marts]}
+snapshots:
+  staypulse:
+    +tags: [snapshot]

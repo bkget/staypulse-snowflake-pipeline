@@ -1,0 +1,15 @@
+staypulse:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_KEY_FILE') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_KEY_PASSPHRASE') }}"
+      role: SP_TRANSFORMER
+      warehouse: TRANSFORM_WH
+      database: STAYPULSE
+      schema: STAGING
+      threads: 4
+      query_tag: dbt
