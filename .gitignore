@@ -1,0 +1,22 @@
+# secrets and local config
+.env
+airflow/.env
+secrets/
+*.p8
+*.pem
+*.local.sql
+
+# data and build output
+data/
+target/
+logs/
+dbt_packages/
+.user.yml
+
+# python and editors
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.idea/
+.DS_Store
