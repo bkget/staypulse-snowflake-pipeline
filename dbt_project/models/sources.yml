@@ -1,0 +1,16 @@
+version: 2
+sources:
+  - name: raw
+    database: staypulse
+    schema: raw
+    tables:
+      - name: listings
+      - name: reviews
+      - name: bookings
+      - name: payments
+      - name: weather_json
+  - name: snowpark
+    database: staypulse
+    schema: intermediate
+    tables:
+      - name: reviews_prepared        # written by prepare_reviews.py, not by dbt
