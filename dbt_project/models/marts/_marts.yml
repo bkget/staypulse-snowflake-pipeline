@@ -1,0 +1,35 @@
+version: 2
+models:
+  - name: dim_listing
+    columns:
+      - name: listing_id
+        data_tests: [unique, not_null]
+  - name: fct_booking
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "checkout_date > checkin_date"
+    columns:
+      - name: booking_id
+        data_tests: [unique, not_null]
+      - name: listing_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_listing')
+                field: listing_id
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['confirmed', 'completed', 'cancelled']
+  - name: fct_review_issue
+    columns:
+      - name: review_id
+        data_tests: [unique, not_null]
+      - name: issue_category
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['cleanliness', 'noise', 'check_in', 'location', 'host_communication', 'amenities', 'value', 'other']
