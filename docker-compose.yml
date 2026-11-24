@@ -1,0 +1,114 @@
+# Two profiles:
+#   pipeline : one-shot runner, used by `make pipeline` (and every other pipeline target)
+#   airflow  : Postgres + Airflow scheduler and webserver with Cosmos, used by `make airflow-up`
+# Secrets come from .env (gitignored). The key is mounted read-only from ./secrets.
+name: staypulse
+
+x-snowflake-env: &snowflake-env
+  SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT:?set SNOWFLAKE_ACCOUNT in .env}
+  SNOWFLAKE_USER: ${SNOWFLAKE_USER:-SVC_PIPELINE}
+  SNOWFLAKE_KEY_PASSPHRASE: ${SNOWFLAKE_KEY_PASSPHRASE:?set SNOWFLAKE_KEY_PASSPHRASE in .env}
+  CORTEX_FN: ${CORTEX_FN:-keyword_stub}      # ai_classify once AI is enabled on the account
+
+x-airflow-common: &airflow-common
+  profiles: ["airflow"]
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.airflow
+  image: staypulse-airflow:local
+  user: "${HOST_UID:-1000}:0"                  # official image convention: host uid, group 0
+  environment:
+    <<: *snowflake-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__WEBSERVER__SECRET_KEY: local-dev-only-not-a-secret
+    SNOWFLAKE_KEY_FILE: /opt/airflow/secrets/pipeline_rsa_key.p8
+    DATA_DIR: /opt/airflow/data
+    DBT_PROFILES_DIR: /opt/airflow/dbt_project
+    STAYPULSE_HOME: /opt/airflow
+    DBT_BIN: /opt/airflow/dbt_venv/bin/dbt
+    DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
+    HOME: /tmp
+    _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./dbt_project:/opt/airflow/dbt_project
+    - ./snowpark_jobs:/opt/airflow/snowpark_jobs
+    - ./sql:/opt/airflow/sql
+    - ./data:/opt/airflow/data
+    - ./secrets:/opt/airflow/secrets:ro
+    - ./logs/airflow:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  runner:
+    profiles: ["pipeline"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.runner
+    image: staypulse-runner:local
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"   # files written to the bind mount stay owned by you
+    working_dir: /app
+    environment:
+      <<: *snowflake-env
+      SNOWFLAKE_KEY_FILE: /app/secrets/pipeline_rsa_key.p8
+      DATA_DIR: /app/data
+      DBT_PROFILES_DIR: /app/dbt_project
+      HOME: /tmp
+    volumes:
+      - .:/app
+    command: ["bash"]
+
+  postgres:
+    profiles: ["airflow"]
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      retries: 20
+
+  airflow-init:
+    <<: *airflow-common
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create --username admin --password "$${_AIRFLOW_WWW_USER_PASSWORD}" \
+          --firstname Local --lastname Admin --role Admin --email admin@example.com || true
+
+  airflow-scheduler:
+    <<: *airflow-common
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    command: scheduler
+
+  airflow-webserver:
+    <<: *airflow-common
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8080:8080"                  # local only
+    command: webserver
+    healthcheck:
+      # python instead of curl: the slim image does not ship curl
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8080/health', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  pgdata:
