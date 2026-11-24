@@ -1,0 +1,4 @@
+# Versions pinned to the set that ran the pipeline end to end on 2026-11-24
+snowflake-snowpark-python==1.58.0
+snowflake-connector-python==4.8.1
+requests==2.34.2

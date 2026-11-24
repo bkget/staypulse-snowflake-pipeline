@@ -1,0 +1,9 @@
+# One-shot pipeline runner: Snowpark jobs and dbt in a single image. Code is bind-mounted at /app by docker-compose.yml.
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DBT_SEND_ANONYMOUS_USAGE_STATS=false
+WORKDIR /app
+COPY docker/requirements.jobs.txt docker/requirements.dbt.txt /tmp/req/
+RUN pip install -r /tmp/req/requirements.jobs.txt -r /tmp/req/requirements.dbt.txt

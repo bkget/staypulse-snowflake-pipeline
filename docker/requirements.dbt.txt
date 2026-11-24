@@ -1,0 +1,4 @@
+# dbt-core 1.13.0b1 is a beta. It is pinned because it is the version the project was verified with.
+dbt-core==1.13.0b1
+dbt-snowflake==1.12.5
+dbt-adapters==1.24.6
