@@ -1,0 +1,24 @@
+# Airflow 2.10 slim image with Astronomer Cosmos. Snowpark jobs and dbt each get their own venv, so their
+# dependency pins can never fight Airflow's. The DAG calls them as subprocesses (BashOperator and Cosmos).
+FROM apache/airflow:slim-2.10.5-python3.12
+ARG AIRFLOW_VERSION=2.10.5
+ARG PYTHON_VERSION=3.12
+USER airflow
+COPY --chown=airflow:0 docker/requirements.airflow.txt docker/requirements.jobs.txt docker/requirements.dbt.txt /tmp/req/
+
+# 1. Airflow-side packages. The slim image has no Postgres driver, so the postgres extra is added here.
+#    The constraints file stops pip from upgrading or replacing Airflow while it resolves Cosmos.
+RUN pip install --no-cache-dir "apache-airflow[postgres]==${AIRFLOW_VERSION}" -r /tmp/req/requirements.airflow.txt \
+      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+
+# 2. Isolated venvs for the Snowpark jobs and for dbt.
+RUN python -m venv /opt/airflow/jobs_venv \
+ && /opt/airflow/jobs_venv/bin/pip install --no-cache-dir -r /tmp/req/requirements.jobs.txt \
+ && python -m venv /opt/airflow/dbt_venv \
+ && /opt/airflow/dbt_venv/bin/pip install --no-cache-dir -r /tmp/req/requirements.dbt.txt
+
+# 3. Fail the build, not the first DAG run, if the pieces are not where the DAG expects them.
+RUN airflow version \
+ && python -c "import cosmos, psycopg2; print('cosmos', cosmos.__version__)" \
+ && /opt/airflow/jobs_venv/bin/python -c "import snowflake.snowpark" \
+ && /opt/airflow/dbt_venv/bin/dbt --version
