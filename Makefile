@@ -28,7 +28,7 @@ AF        := $(DC) --profile airflow
 PIPELINE_STEPS := doctor build check ingest dbt-deps dbt-staging snapshot-bootstrap prepare-reviews dbt-core forecast
 
 .PHONY: help pipeline $(PIPELINE_STEPS) reload-raw dbt-test shell summary logs clean clean-logs \
-        demo airflow-up airflow-down airflow-run airflow-trigger airflow-logs airflow-errors airflow-reset
+        demo stop airflow-up airflow-down airflow-run airflow-trigger airflow-logs airflow-errors airflow-reset
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[1m%-20s\033[0m %s\n",$$1,$$2}' $(MAKEFILE_LIST)
@@ -120,6 +120,12 @@ airflow-trigger: ## Unpause and trigger the DAG through the scheduler
 
 airflow-logs: ## Follow scheduler logs
 	@$(AF) logs -f --tail 100 airflow-scheduler
+
+stop: ## Stop everything StayPulse started (Airflow stack, leftover runner containers). Keeps all data
+	@$(STEP) stop -- bash -c 'docker compose --profile airflow --profile pipeline down --remove-orphans; \
+	  ids=$$(docker ps -aq --filter label=com.docker.compose.project=staypulse); \
+	  if [ -n "$$ids" ]; then docker rm -f $$ids; fi; \
+	  echo "staypulse containers left: $$(docker ps -aq --filter label=com.docker.compose.project=staypulse | wc -l)"'
 
 airflow-down: ## Stop Airflow (keeps the metadata database)
 	@$(STEP) airflow-down -- $(AF) down
