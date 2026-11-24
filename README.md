@@ -105,6 +105,8 @@ Run `make help` for the full list. The ones you will use most:
 | `forecast` | Cortex FORECAST with a backtest, and a seasonal baseline if Cortex ML is unavailable |
 | `demo` | Start Postgres, Airflow init, webserver and scheduler, wait until healthy, print URL and login |
 | `airflow-errors`, `airflow-run`, `airflow-down` | DAG import check, one full DAG run, stop the stack |
+| `stop` | Stop and remove every container the project started. Keeps the Airflow metadata volume and all Snowflake data |
+| `airflow-reset` | Like `stop`, but also deletes the Airflow metadata volume |
 | `shell` | Interactive shell inside the runner container |
 
 Every step writes a timestamped log to `logs/<run-id>/<step>.log`. `logs/latest` points at the newest run, and a
